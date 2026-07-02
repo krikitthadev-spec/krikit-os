@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+KR_ROOT="$(cd "$(dirname "$0")" && pwd)"
+if [ -z "${KR_ROOT}" ]; then
+  KR_ROOT="$HOME/krikit-os"
+fi
+
+DISTRO="${DISTRO:-alpine}"
+if command -v proot-distro >/dev/null 2>&1 && proot-distro list | grep -q "^$DISTRO"; then
+  proot-distro login "$DISTRO" --shared-tmp --bind "$KR_ROOT":/root/krikit -- /bin/bash -lc "cd /root/krikit && ./krikit-shell"
+else
+  cd "$KR_ROOT" || exit 1
+  ./krikit-shell
+fi

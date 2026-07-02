@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# krikit-shell: interactive entrypoint for Krikit OS
+# Make executable: chmod +x krikit-shell
+
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+export KR_ROOT="$ROOT"
+export PATH="$KR_ROOT/bin:$PATH"
+
+# load dotfiles if present
+if [ -f "$KR_ROOT/dotfiles/.bashrc" ]; then
+  # shellcheck disable=SC1090
+  source "$KR_ROOT/dotfiles/.bashrc"
+fi
+
+welcome() {
+  clear
+  echo "=========================================="
+  echo "   Welcome to Krikit OS (Termux edition)"
+  echo "   Repo: $KR_ROOT"
+  echo "=========================================="
+  uname -a
+  echo
+}
+
+menu_items=(
+  "1) Open interactive shell"
+  "2) Start / attach tmux session 'krikit'"
+  "3) Run krikit status"
+  "4) Install recommended modules"
+  "5) Update Krikit (git pull)"
+  "6) Open repo in $EDITOR (if set)"
+  "7) Exit"
+)
+
+show_menu_fzf() {
+  printf "%s\n" "${menu_items[@]}" | fzf --height 40% --border --ansi || return 1
+}
+
+show_menu_plain() {
+  for i in "${menu_items[@]}"; do
+    echo "$i"
+  done
+  echo
+  read -rp "Select an option [1-7]: " sel
+  case "$sel" in
+    1) echo "1) Open interactive shell"; return 0;;
+    2) echo "2) Start tmux"; return 2;;
+    3) echo "3) Status"; return 3;;
+    4) echo "4) Modules"; return 4;;
+    5) echo "5) Update"; return 5;;
+    6) echo "6) Edit"; return 6;;
+    7) echo "7) Exit"; return 7;;
+    *) echo "Invalid"; return 255;;
+  esac
+}
+
+kr_status() {
+  echo "Krikit OS status"
+  echo "Root: $KR_ROOT"
+  echo "Date: $(date)"
+  echo "Uname: $(uname -a)"
+  if command -v neofetch >/dev/null 2>&1; then
+    neofetch --stdout || true
+  fi
+}
+
+install_modules() {
+  if [ -x "$KR_ROOT/modules/install_modules.sh" ]; then
+    bash "$KR_ROOT/modules/install_modules.sh"
+  else
+    echo "No modules installer found."
+  fi
+}
+
+while true; do
+  welcome
+  if command -v fzf >/dev/null 2>&1; then
+    choice=$(show_menu_fzf) || { echo "No selection"; }
+    case "$choice" in
+      *"Open interactive shell"*) exec "$SHELL" -l;;
+      *"Start / attach tmux"*)
+        if command -v tmux >/dev/null 2>&1; then
+          tmux new -A -s krikit
+        else
+          echo "tmux not installed"; sleep 1
+        fi
+        ;;
+      *"Run krikit status"*) kr_status; read -rp "Press Enter to continue...";;
+      *"Install recommended modules"*) install_modules; read -rp "Press Enter to continue...";;
+      *"Update Krikit (git pull"*) git -C "$KR_ROOT" pull || true; read -rp "Press Enter to continue...";;
+      *"Open repo in"*) ${EDITOR:-vi} "$KR_ROOT";;
+      *"Exit"*) echo "Goodbye"; exit 0;;
+      *) echo "Unknown selection"; sleep 1;;
+    esac
+  else
+    show_menu_plain
+    code=$?
+    case $code in
+      0) exec "$SHELL" -l;;
+      2) tmux new -A -s krikit;;
+      3) kr_status; read -rp "Press Enter to continue...";;
+      4) install_modules; read -rp "Press Enter to continue...";;
+      5) git -C "$KR_ROOT" pull || true; read -rp "Press Enter to continue...";;
+      6) ${EDITOR:-vi} "$KR_ROOT";;
+      7) echo "Goodbye"; exit 0;;
+      *) echo "Invalid selection"; sleep 1;;
+    esac
+  fi
+done
